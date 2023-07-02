@@ -63,6 +63,22 @@ func (r *abstractDefaultRule) UpdateGeosite() error {
 	return nil
 }
 
+func (r *abstractDefaultRule) ContainsDestinationIPCIDRRule() bool {
+	if len(r.destinationIPCIDRItems) > 0 {
+		return true
+	}
+	for _, rawRule := range r.items {
+		ruleSet, isRuleSet := rawRule.(*RuleSetItem)
+		if !isRuleSet {
+			continue
+		}
+		if ruleSet.ContainsDestinationIPCIDRRule() {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *abstractDefaultRule) Match(metadata *adapter.InboundContext) bool {
 	if len(r.allItems) == 0 {
 		return true
@@ -215,6 +231,22 @@ func (r *abstractLogicalRule) Close() error {
 		}
 	}
 	return nil
+}
+
+func (r *abstractLogicalRule) ContainsDestinationIPCIDRRule() bool {
+	for _, rawRule := range r.rules {
+		switch rule := rawRule.(type) {
+		case *DefaultRule:
+			if rule.ContainsDestinationIPCIDRRule() {
+				return true
+			}
+		case *LogicalRule:
+			if rule.ContainsDestinationIPCIDRRule() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *abstractLogicalRule) Match(metadata *adapter.InboundContext) bool {

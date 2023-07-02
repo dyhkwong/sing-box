@@ -98,6 +98,7 @@ type Router struct {
 	needPackageManager                 bool
 	wifiState                          adapter.WIFIState
 	started                            bool
+	routeDomainStrategy                option.RouteDomainStrategy
 }
 
 func NewRouter(
@@ -135,6 +136,7 @@ func NewRouter(
 		needPackageManager: common.Any(inbounds, func(inbound option.Inbound) bool {
 			return len(inbound.TunOptions.IncludePackage) > 0 || len(inbound.TunOptions.ExcludePackage) > 0
 		}),
+		routeDomainStrategy: options.DomainStrategy,
 	}
 	router.dnsClient = dns.NewClient(dns.ClientOptions{
 		DisableCache:     dnsOptions.DNSClientOptions.DisableCache,
@@ -1148,8 +1150,24 @@ func (r *Router) match0(ctx context.Context, metadata *adapter.InboundContext, d
 			metadata.ProcessInfo = processInfo
 		}
 	}
+
+	hasResolved := false
+	containsDestinationIPCIDRRule := false
+	j := 0
+match:
 	for i, rule := range r.rules {
 		metadata.ResetRuleCache()
+		if !containsDestinationIPCIDRRule && rule.ContainsDestinationIPCIDRRule() {
+			containsDestinationIPCIDRRule = true
+		}
+		if r.routeDomainStrategy == option.RouteDomainStrategyIPOnDemand && !hasResolved && metadata.Destination.IsFqdn() && len(metadata.DestinationAddresses) == 0 && containsDestinationIPCIDRRule || j == 1 && !hasResolved {
+			addresses, err := r.Lookup(adapter.WithContext(ctx, metadata), metadata.Destination.Fqdn, dns.DomainStrategy(metadata.InboundOptions.DomainStrategy))
+			r.dnsLogger.DebugContext(ctx, "resolved [", strings.Join(F.MapToString(addresses), " "), "]")
+			if err == nil {
+				metadata.IPs = addresses
+			}
+			hasResolved = true
+		}
 		if rule.Match(metadata) {
 			detour := rule.Outbound()
 			r.logger.DebugContext(ctx, "match[", i, "] ", rule.String(), " => ", detour)
@@ -1159,6 +1177,11 @@ func (r *Router) match0(ctx context.Context, metadata *adapter.InboundContext, d
 			r.logger.ErrorContext(ctx, "outbound not found: ", detour)
 		}
 	}
+	if j == 0 && r.routeDomainStrategy == option.RouteDomainStrategyIPIfNonMatch && metadata.Destination.IsFqdn() && len(metadata.DestinationAddresses) == 0 && containsDestinationIPCIDRRule {
+		j++
+		goto match
+	}
+
 	return nil, defaultOutbound
 }
 
