@@ -124,6 +124,11 @@ type RuleSetStartContext interface {
 	Close()
 }
 
+type HostsRule interface {
+	Rule
+	IP() []netip.Addr
+}
+
 type InterfaceUpdateListener interface {
 	InterfaceUpdated()
 }
