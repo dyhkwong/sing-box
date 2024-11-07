@@ -421,7 +421,8 @@ func (r *Router) matchRule(
 		}
 		if dns.DomainStrategy(metadata.InboundOptions.DomainStrategy) != dns.DomainStrategyAsIS {
 			fatalErr = r.actionResolve(ctx, metadata, &rule.RuleActionResolve{
-				Strategy: dns.DomainStrategy(metadata.InboundOptions.DomainStrategy),
+				Strategy:              dns.DomainStrategy(metadata.InboundOptions.DomainStrategy),
+				NoOverrideDestination: false,
 			})
 			if fatalErr != nil {
 				return
@@ -674,13 +675,19 @@ func (r *Router) actionResolve(ctx context.Context, metadata *adapter.InboundCon
 		if err != nil {
 			return err
 		}
-		metadata.DestinationAddresses = addresses
-		r.dnsLogger.DebugContext(ctx, "resolved [", strings.Join(F.MapToString(metadata.DestinationAddresses), " "), "]")
-		if metadata.Destination.IsIPv4() {
-			metadata.IPVersion = 4
-		} else if metadata.Destination.IsIPv6() {
-			metadata.IPVersion = 6
+		r.dnsLogger.DebugContext(ctx, "resolved [", strings.Join(F.MapToString(addresses), " "), "]")
+		if action.NoOverrideDestination {
+			metadata.IPs = addresses
+		} else {
+			metadata.DestinationAddresses = addresses
+			// unreachable code by upstream
+			/*if metadata.Destination.IsIPv4() {
+				metadata.IPVersion = 4
+			} else if metadata.Destination.IsIPv6() {
+				metadata.IPVersion = 6
+			}*/
 		}
+
 	}
 	return nil
 }

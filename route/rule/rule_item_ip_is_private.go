@@ -33,6 +33,11 @@ func (r *IPIsPrivateItem) Match(metadata *adapter.InboundContext) bool {
 				return true
 			}
 		}
+		for _, ips := range metadata.IPs {
+			if !N.IsPublicAddr(ips) {
+				return true
+			}
+		}
 	}
 	return false
 }

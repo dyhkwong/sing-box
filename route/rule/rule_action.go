@@ -63,14 +63,16 @@ func NewRuleAction(router adapter.Router, logger logger.ContextLogger, action op
 		return &RuleActionHijackDNS{}, nil
 	case C.RuleActionTypeSniff:
 		sniffAction := &RuleActionSniff{
-			snifferNames: action.SniffOptions.Sniffer,
-			Timeout:      time.Duration(action.SniffOptions.Timeout),
+			snifferNames:        action.SniffOptions.Sniffer,
+			Timeout:             time.Duration(action.SniffOptions.Timeout),
+			OverrideDestination: action.SniffOptions.OverrideDestination,
 		}
 		return sniffAction, sniffAction.build()
 	case C.RuleActionTypeResolve:
 		return &RuleActionResolve{
-			Strategy: dns.DomainStrategy(action.ResolveOptions.Strategy),
-			Server:   action.ResolveOptions.Server,
+			Strategy:              dns.DomainStrategy(action.ResolveOptions.Strategy),
+			Server:                action.ResolveOptions.Server,
+			NoOverrideDestination: action.ResolveOptions.NoOverrideDestination,
 		}, nil
 	default:
 		panic(F.ToString("unknown rule action: ", action.Action))
@@ -247,7 +249,7 @@ type RuleActionSniff struct {
 	StreamSniffers []sniff.StreamSniffer
 	PacketSniffers []sniff.PacketSniffer
 	Timeout        time.Duration
-	// Deprecated
+
 	OverrideDestination bool
 }
 
@@ -301,6 +303,8 @@ func (r *RuleActionSniff) String() string {
 type RuleActionResolve struct {
 	Strategy dns.DomainStrategy
 	Server   string
+
+	NoOverrideDestination bool
 }
 
 func (r *RuleActionResolve) Type() string {

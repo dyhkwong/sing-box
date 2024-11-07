@@ -292,9 +292,13 @@ func (r *RejectActionOptions) UnmarshalJSON(bytes []byte) error {
 type RouteActionSniff struct {
 	Sniffer badoption.Listable[string] `json:"sniffer,omitempty"`
 	Timeout badoption.Duration         `json:"timeout,omitempty"`
+
+	OverrideDestination bool `json:"override_destination,omitempty"`
 }
 
 type RouteActionResolve struct {
 	Strategy DomainStrategy `json:"strategy,omitempty"`
 	Server   string         `json:"server,omitempty"`
+
+	NoOverrideDestination bool `json:"no_override_destination,omitempty"`
 }

@@ -87,6 +87,14 @@ func (r *IPCIDRItem) Match(metadata *adapter.InboundContext) bool {
 		}
 		return false
 	}
+	if len(metadata.IPs) > 0 {
+		for _, ip := range metadata.IPs {
+			if r.ipSet.Contains(ip) {
+				return true
+			}
+		}
+		return false
+	}
 	return metadata.IPCIDRAcceptEmpty
 }
 
