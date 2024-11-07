@@ -114,6 +114,12 @@ type RuleSetMetadata struct {
 	ContainsWIFIRule    bool
 	ContainsIPCIDRRule  bool
 }
+
+type HostsRule interface {
+	Rule
+	IP() []netip.Addr
+}
+
 type HTTPStartContext struct {
 	access          sync.Mutex
 	httpClientCache map[string]*http.Client

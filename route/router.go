@@ -49,6 +49,7 @@ type Router struct {
 	outbounds                          []adapter.Outbound
 	outboundByTag                      map[string]adapter.Outbound
 	rules                              []adapter.Rule
+	hostsRules                         []adapter.HostsRule
 	defaultDetour                      string
 	defaultOutboundForConnection       adapter.Outbound
 	defaultOutboundForPacketConnection adapter.Outbound
@@ -107,9 +108,10 @@ func NewRouter(
 		outboundByTag:         make(map[string]adapter.Outbound),
 		rules:                 make([]adapter.Rule, 0, len(options.Rules)),
 		dnsRules:              make([]adapter.DNSRule, 0, len(dnsOptions.Rules)),
+		hostsRules:            make([]adapter.HostsRule, 0, len(dnsOptions.Hosts)),
 		ruleSetMap:            make(map[string]adapter.RuleSet),
 		needGeoIPDatabase:     hasRule(options.Rules, isGeoIPRule) || hasDNSRule(dnsOptions.Rules, isGeoIPDNSRule),
-		needGeositeDatabase:   hasRule(options.Rules, isGeositeRule) || hasDNSRule(dnsOptions.Rules, isGeositeDNSRule),
+		needGeositeDatabase:   hasRule(options.Rules, isGeositeRule) || hasDNSRule(dnsOptions.Rules, isGeositeDNSRule) || hasHostsRule(dnsOptions.Hosts, isGeositeHostsRule),
 		geoIPOptions:          common.PtrValueOrDefault(options.GeoIP),
 		geositeOptions:        common.PtrValueOrDefault(options.Geosite),
 		geositeCache:          make(map[string]adapter.Rule),
@@ -159,6 +161,13 @@ func NewRouter(
 			return nil, E.Cause(err, "parse dns rule[", i, "]")
 		}
 		router.dnsRules = append(router.dnsRules, dnsRule)
+	}
+	for i, hostsRuleOptions := range dnsOptions.Hosts {
+		hostsRule, err := R.NewHostsRule(router, router.logger, hostsRuleOptions)
+		if err != nil {
+			return nil, E.Cause(err, "parse hosts rule[", i, "]")
+		}
+		router.hostsRules = append(router.hostsRules, hostsRule)
 	}
 	for i, ruleSetOptions := range options.RuleSet {
 		if _, exists := router.ruleSetMap[ruleSetOptions.Tag]; exists {
@@ -517,6 +526,12 @@ func (r *Router) Start() error {
 				r.logger.Error("failed to initialize geosite: ", err)
 			}
 		}
+		for _, rule := range r.hostsRules {
+			err := rule.UpdateGeosite()
+			if err != nil {
+				r.logger.Error("failed to initialize geosite: ", err)
+			}
+		}
 		err := common.Close(r.geositeReader)
 		if err != nil {
 			return err
@@ -576,6 +591,14 @@ func (r *Router) Start() error {
 			return E.Cause(err, "initialize DNS rule[", i, "]")
 		}
 	}
+	for i, rule := range r.hostsRules {
+		monitor.Start("initialize hosts rule[", i, "]")
+		err := rule.Start()
+		monitor.Finish()
+		if err != nil {
+			return E.Cause(err, "initialize hosts rule[", i, "]")
+		}
+	}
 	for i, transport := range r.transports {
 		monitor.Start("initialize DNS transport[", i, "]")
 		err := transport.Start()
@@ -609,6 +632,13 @@ func (r *Router) Close() error {
 		monitor.Start("close dns rule[", i, "]")
 		err = E.Append(err, rule.Close(), func(err error) error {
 			return E.Cause(err, "close dns rule[", i, "]")
+		})
+		monitor.Finish()
+	}
+	for i, rule := range r.hostsRules {
+		monitor.Start("close hosts rule[", i, "]")
+		err = E.Append(err, rule.Close(), func(err error) error {
+			return E.Cause(err, "close hosts rule[", i, "]")
 		})
 		monitor.Finish()
 	}

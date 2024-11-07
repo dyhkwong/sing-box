@@ -7,6 +7,7 @@ import (
 )
 
 type DNSOptions struct {
+	Hosts          []HostsRule        `json:"hosts,omitempty"`
 	Servers        []DNSServerOptions `json:"servers,omitempty"`
 	Rules          []DNSRule          `json:"rules,omitempty"`
 	Final          string             `json:"final,omitempty"`
